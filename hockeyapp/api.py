@@ -76,8 +76,8 @@ class APIRequest(object):
                                               headers=self.headers,
                                               data=data))
 
-    def _get(self, uri_parts, data=None):
-        """Post data to the API
+    def _get(self, uri_parts, data=None, params=None):
+        """Get data from the API
 
         :param list uri_parts: Parts of the URI to compose the URI
         :param dict data: Optional query parameters for the GET
@@ -88,10 +88,11 @@ class APIRequest(object):
         LOGGER.debug('Performing HTTP GET to %s', uri)
         return self._response(requests.get(uri,
                                            headers=self.headers,
+                                           params=params,
                                            data=data))
 
     def _post(self, uri_parts=None, data=None, files=None):
-        """Get data from the API
+        """Post data to the API
 
         :param list uri_parts: Parts of the URI to compose the URI
         :param dict data: Optional query parameters for the POST
@@ -119,6 +120,8 @@ class APIRequest(object):
         if 200 <= response.status_code <= 300:
             if 'application/json' in response.headers['Content-Type']:
                 return response.json()
+            if self._api_rate_limit_exceeded(response):
+                raise APIError({'429': 'Rate Limit Exceeded'})
             return response.content
         if response.status_code == 404:
             raise APIError({'404': 'URL Not Found: %s' % response.url})
@@ -126,6 +129,9 @@ class APIRequest(object):
             raise APIError(response.json().get('errors'))
         LOGGER.debug(response.content)
         raise APIError('Not JSON')
+
+    def _api_rate_limit_exceeded(self, response):
+        return response.content == b'202 Accepted (Rate Limit Exceeded)\n'
 
     @property
     def _uri(self):
